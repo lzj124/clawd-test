@@ -61,7 +61,7 @@ def wait_wakeword(timeout=120):
 
 # ── 提示音 (Mac: afplay) ──
 
-PROMPT_PATH = Path(__file__).parent / "zaizai.wav"
+PROMPT_PATH = Path(__file__).parent.parent.parent / "assets" / "zaizai.wav"
 
 def play_prompt():
     import subprocess as sp
