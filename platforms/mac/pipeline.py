@@ -384,27 +384,37 @@ def speak(text):
 
 def main():
     print("=" * 50)
-    print("  Clawd Pipeline Test")
+    print("  Clawd — 持续语音助手")
+    print("  唤醒词 → 录音 → ASR → LLM → TTS → 循环")
+    print("  Ctrl+C 退出")
     print("=" * 50)
 
     ensure_hermes()
+    print()
 
-    if not wait_wakeword():
-        sys.exit(1)
+    while True:
+        if not wait_wakeword():
+            break
 
-    play_prompt()
+        play_prompt()
 
-    audio = record(RECORD_SECS)
-    text = asr(audio)
-    if not text:
-        sys.exit(1)
+        audio = record(RECORD_SECS)
+        text = asr(audio)
+        if not text:
+            print("(no speech detected, back to listening)")
+            print()
+            continue
 
-    reply = chat(text)
-    if not reply:
-        sys.exit(1)
+        reply = chat(text)
+        if not reply:
+            print("(LLM failed, back to listening)")
+            print()
+            continue
 
-    speak(reply)
-    print(f"\nOK: '{text}' -> '{reply}'")
+        speak(reply)
+        print(f"\nOK: '{text}' -> '{reply}'")
+        print()
+        print("─" * 40)
 
 
 if __name__ == "__main__":
