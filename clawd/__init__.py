@@ -23,7 +23,7 @@ def load_env(env_dir=None):
     cfg = {
         "volc_token": os.environ.get("VOLC_TOKEN", ""),
         "hermes_key": os.environ.get("HERMES_API_KEY", ""),
-        "hermes_url": os.environ.get("HERMES_URL", "http://localhost:8642/v1/chat/completions"),
+        "hermes_url": os.environ.get("HERMES_URL", "http://localhost:8642"),
         "api_server_key": os.environ.get("API_SERVER_KEY", "clawd"),
         "asr_resource_id": os.environ.get("ASR_RESOURCE_ID", "volc.seedasr.sauc.duration"),
         "llm_prompt": os.environ.get("LLM_PROMPT", "你是一个中文语音助手，回答简短直接。"),
@@ -154,7 +154,7 @@ def llm_chat(text, hermes_url="", hermes_key="", api_server_key="clawd",
     elif api_server_key:
         hdrs["Authorization"] = f"Bearer {api_server_key}"
 
-    base = hermes_url.rsplit("/v1/chat/completions", 1)[0]
+    base = hermes_url.rstrip("/")
 
     resp = requests.post(
         f"{base}/v1/runs",
