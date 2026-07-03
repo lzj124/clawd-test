@@ -15,7 +15,6 @@ if env_path.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-VOLC_APPID = os.environ.get("VOLC_APPID", "")
 VOLC_TOKEN = os.environ.get("VOLC_TOKEN", "")
 HERMES_KEY = os.environ.get("HERMES_API_KEY", "")
 HERMES_URL = os.environ.get("HERMES_URL", "http://localhost:8642/v1/chat/completions")
@@ -23,8 +22,8 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 LLM_PROMPT = "你是一个中文语音助手，回答简短直接。"
 RECORD_SECS = int(os.environ.get("RECORD_SECS", "5"))
 
-if not VOLC_APPID or not VOLC_TOKEN:
-    print("! Missing VOLC_APPID and VOLC_TOKEN, check .env")
+if not VOLC_TOKEN:
+    print("! Missing VOLC_TOKEN, check .env")
     sys.exit(1)
 
 
