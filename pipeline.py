@@ -36,7 +36,17 @@ def wait_wakeword(timeout=120):
     import sounddevice as sd
     import numpy as np
 
+    # Auto-download models if missing
     mdir = Path(openwakeword.__file__).parent / "resources" / "models"
+
+    # Check for at least one valid model file
+    has_models = any(
+        mdir.glob("*.onnx")
+    ) or any(mdir.glob("*.tflite"))
+    if not has_models:
+        print("Downloading openWakeWord models...")
+        openwakeword.utils.download_models()
+
     onx = mdir / "embedding_model.onnx"
     if not onx.exists():
         tfl = mdir / "embedding_model.tflite"
