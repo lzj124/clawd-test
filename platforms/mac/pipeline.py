@@ -256,17 +256,21 @@ def speak(text):
         print("TTS: no audio")
         return False
 
-    out = Path.home() / "Desktop" / "clawd-test" / "output.wav"
-    with wave.open(str(out), "wb") as wf:
+    import subprocess, tempfile, os as _os
+
+    # 写入临时文件
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp_path = tmp.name
+    with wave.open(tmp, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(8000)
         wf.writeframes(bytes(pcm))
-    print(f"Saved {out} ({len(pcm)}B)")
+    print(f"  TTS: {len(pcm)} bytes")
 
-    import subprocess
-    subprocess.run(["afplay", str(out)])
-    print("Played")
+    subprocess.run(["afplay", tmp_path])
+    _os.unlink(tmp_path)
+    print("  Played")
     return True
 
 
