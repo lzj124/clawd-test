@@ -1,5 +1,6 @@
-openwakeword>=0.6.0
-sounddevice>=0.5.0
-numpy>=1.24
-requests>=2.31
-websocket-client>=1.7
+# Clawd — Python dependencies (Mac)
+openwakeword
+sounddevice
+we...onnxruntime
+numpy
+scipy
