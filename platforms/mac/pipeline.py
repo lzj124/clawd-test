@@ -3,7 +3,7 @@
 Clawd — 全链路语音助手测试
 唤醒词 -> ASR -> LLM -> TTS -> 播放
 """
-import os, sys, json, time, base64, struct, uuid, wave, threading
+import os, sys, json, time, base64, struct, uuid, wave, threading, socket
 from pathlib import Path
 
 # ── Load .env ──
@@ -24,6 +24,48 @@ RECORD_SECS = int(os.environ.get("RECORD_SECS", "5"))
 if not VOLC_TOKEN:
     print("! Missing VOLC_TOKEN, check .env")
     sys.exit(1)
+
+API_SERVER_KEY = os.environ.get("API_SERVER_KEY", "clawd")
+
+
+# ── 0. Auto-start Hermes gateway ──
+
+def ensure_hermes():
+    """Start Hermes gateway if not already running, with API server enabled."""
+    s = socket.socket()
+    try:
+        s.settimeout(2)
+        s.connect(("localhost", 8642))
+        s.close()
+        print("Hermes gateway: already running")
+        return
+    except:
+        pass
+
+    print("Starting Hermes gateway...")
+    import subprocess as _sp
+    env = os.environ.copy()
+    env["API_SERVER_KEY"] = API_SERVER_KEY
+    _sp.Popen(
+        ["hermes", "gateway", "run", "--replace"],
+        stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+        env=env,
+    )
+    for _ in range(30):
+        time.sleep(1)
+        try:
+            s = socket.socket()
+            s.settimeout(2)
+            s.connect(("localhost", 8642))
+            s.close()
+            print("Hermes gateway: ready")
+            return
+        except:
+            continue
+    print("! Failed to start Hermes, please start it manually")
+
+
+# ── 1. Wake Word Detection ──
 
 
 # ── 1. Wake Word Detection ──
@@ -205,6 +247,8 @@ def chat(text):
     hdrs = {"Content-Type": "application/json"}
     if HERMES_KEY:
         hdrs["Authorization"] = f"Bearer {HERMES_KEY}"
+    else:
+        hdrs["X-Api-Key"] = API_SERVER_KEY
 
     # Create run
     resp = requests.post(
@@ -343,6 +387,8 @@ def main():
     print("=" * 50)
     print("  Clawd Pipeline Test")
     print("=" * 50)
+
+    ensure_hermes()
 
     if not wait_wakeword():
         sys.exit(1)
