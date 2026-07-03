@@ -357,8 +357,9 @@ def tts_play(text):
 
 def main():
     print("=" * 50)
-    print("  ClawVoice Pi — 全链路 (V3 API)")
-    print("  唤醒词 -> 在呢 -> 录制 -> ASR -> LLM -> TTS")
+    print("  Clawd Pi — 持续语音助手")
+    print("  唤醒词 → 录音 → ASR → LLM → TTS → 循环")
+    print("  Ctrl+C 退出")
     print("=" * 50)
 
     ensure_hermes()
@@ -376,14 +377,16 @@ def main():
         pcm = wav_to_pcm(wav_path)
         text = asr_transcribe(pcm)
         if not text:
-            tts_play("抱歉，没有听清，请再说一遍")
+            print("⚠️ 未识别到语音，继续监听")
+            print("─" * 40)
             continue
         reply = llm_chat(text)
         if not reply:
-            tts_play("抱歉，我出错了")
+            print("⚠️ LLM 失败，继续监听")
+            print("─" * 40)
             continue
         tts_play(reply)
-        print("-" * 50)
+        print("─" * 40)
     print("再见！")
 
 if __name__ == "__main__":
