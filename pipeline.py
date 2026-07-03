@@ -55,8 +55,8 @@ def wait_wakeword(timeout=120):
             shutil.copy(str(tfl), str(onx))
 
     print("Loading openWakeWord...")
-    model = Model(wakeword_models=["hey jarvis"])
-    print('Listening for "hey jarvis"... (Ctrl+C to skip)')
+    model = Model(wakeword_models=["alexa"])
+    print('Listening for "alexa"... (Ctrl+C to skip)')
 
     SR, FRAME = 16000, 1280
     stream = sd.InputStream(samplerate=SR, channels=1, dtype="int16", blocksize=FRAME)
