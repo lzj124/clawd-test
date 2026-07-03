@@ -185,23 +185,79 @@ def asr_transcribe(pcm):
         print("⚠️ ASR 无结果")
     return text
 
-# ── 4. LLM ──
+# ── 4. LLM (Hermes /v1/runs — 带记忆) ──
 
 def llm_chat(text):
     import requests
     print("🤖 LLM...")
     try:
-        resp = requests.post(HERMES_URL, json={
-            "model": LLM_MODEL,
-            "messages": [
-                {"role": "system", "content": LLM_PROMPT},
-                {"role": "user", "content": text},
-            ],
-            "temperature": 0.7,
-            "max_tokens": 256,
-        }, headers={"Content-Type": "application/json"}, timeout=30)
-        reply = resp.json()["choices"][0]["message"]["content"]
-        print(f'💬 {reply[:100]}')
+        # Create run
+        url = HERMES_URL.replace("/chat/completions", "/v1/runs")
+        resp = requests.post(
+            url,
+            json={"input": text, "instructions": LLM_PROMPT},
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+        )
+        if resp.status_code not in (200, 202):
+            print(f"  Run HTTP {resp.status_code}")
+            return None
+
+        run_id = resp.json().get("run_id") or resp.json().get("id", "")
+        if not run_id:
+            print(f"  No run_id: {resp.text[:200]}")
+            return None
+
+        # Stream events
+        ev_url = HERMES_URL.replace("/chat/completions", f"/v1/runs/{run_id}/events")
+        ev_resp = requests.get(ev_url, headers={"Content-Type": "application/json"}, timeout=120, stream=True)
+        if ev_resp.status_code != 200:
+            print(f"  Events HTTP {ev_resp.status_code}")
+            return None
+
+        reply = ""
+        for line in ev_resp.iter_lines():
+            if not line:
+                continue
+            line = line.decode("utf-8", errors="ignore")
+            if not line.startswith("data: "):
+                continue
+            try:
+                ev = json.loads(line[6:])
+            except json.JSONDecodeError:
+                continue
+
+            event = ev.get("event", "")
+
+            if event == "approval.request":
+                # Auto-approve
+                approve_url = HERMES_URL.replace(
+                    "/chat/completions", f"/v1/runs/{run_id}/approval"
+                )
+                try:
+                    requests.post(approve_url, json={"choice": "always"},
+                                  headers={"Content-Type": "application/json"}, timeout=5)
+                except Exception:
+                    pass
+                continue
+            elif event == "message.delta":
+                d = ev.get("delta", "")
+                if d:
+                    reply += d
+            elif event == "run.completed":
+                out = ev.get("output", "")
+                if out and not reply:
+                    reply = out
+                break
+            elif event == "run.failed":
+                print(f"  Run failed: {ev.get('error', 'unknown')}")
+                break
+
+        reply = reply.strip()
+        if reply:
+            print(f'💬 {reply[:100]}')
+        else:
+            print("💬 (empty)")
         return reply
     except Exception as e:
         print(f"❌ LLM: {e}")
