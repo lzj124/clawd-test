@@ -18,7 +18,6 @@ if env_path.exists():
 VOLC_TOKEN = os.environ.get("VOLC_TOKEN", "")
 HERMES_KEY = os.environ.get("HERMES_API_KEY", "")
 HERMES_URL = os.environ.get("HERMES_URL", "http://localhost:8642/v1/chat/completions")
-LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 LLM_PROMPT = "你是一个中文语音助手，回答简短直接。"
 RECORD_SECS = int(os.environ.get("RECORD_SECS", "5"))
 
@@ -197,7 +196,7 @@ def asr(pcm):
     return text
 
 
-# ── 4. LLM (Hermes API) ──
+# ── 4. LLM (Hermes /v1/runs — with memory) ──
 
 def chat(text):
     import requests
@@ -206,23 +205,74 @@ def chat(text):
     hdrs = {"Content-Type": "application/json"}
     if HERMES_KEY:
         hdrs["Authorization"] = f"Bearer {HERMES_KEY}"
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": LLM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        "temperature": 0.7,
-        "max_tokens": 256,
-    }
-    try:
-        resp = requests.post(HERMES_URL, json=payload, headers=hdrs, timeout=30)
-        reply = resp.json()["choices"][0]["message"]["content"]
-        print(f"LLM: {reply[:100]}")
-        return reply
-    except Exception as e:
-        print(f"LLM failed: {e}")
+
+    # Create run
+    resp = requests.post(
+        HERMES_URL.replace("/chat/completions", "/v1/runs"),
+        json={"input": text, "instructions": LLM_PROMPT},
+        headers=hdrs, timeout=10,
+    )
+    if resp.status_code not in (200, 202):
+        print(f"  Run HTTP {resp.status_code}")
         return None
+
+    run_id = resp.json().get("run_id") or resp.json().get("id", "")
+    if not run_id:
+        print(f"  No run_id: {resp.text[:200]}")
+        return None
+
+    # Stream events
+    ev_url = HERMES_URL.replace("/chat/completions", f"/v1/runs/{run_id}/events")
+    ev_resp = requests.get(ev_url, headers=hdrs, timeout=120, stream=True)
+    if ev_resp.status_code != 200:
+        print(f"  Events HTTP {ev_resp.status_code}")
+        return None
+
+    reply = ""
+    for line in ev_resp.iter_lines():
+        if not line:
+            continue
+        line = line.decode("utf-8", errors="ignore")
+        if not line.startswith("data: "):
+            continue
+        try:
+            ev = json.loads(line[6:])
+        except json.JSONDecodeError:
+            continue
+
+        event = ev.get("event", "")
+
+        if event == "approval.request":
+            # Auto-approve for voice assistant (no UI)
+            approve_url = HERMES_URL.replace(
+                "/chat/completions", f"/v1/runs/{run_id}/approval"
+            )
+            try:
+                requests.post(approve_url, json={"choice": "always"},
+                              headers=hdrs, timeout=5)
+            except Exception:
+                pass
+            continue
+
+        elif event == "message.delta":
+            delta = ev.get("delta", "")
+            if delta:
+                reply += delta
+        elif event == "run.completed":
+            out = ev.get("output", "")
+            if out and not reply:
+                reply = out
+            break
+        elif event == "run.failed":
+            print(f"  Run failed: {ev.get('error', 'unknown')}")
+            break
+
+    reply = reply.strip()
+    if reply:
+        print(f"LLM: {reply[:100]}")
+    else:
+        print("LLM: empty reply")
+    return reply
 
 
 # ── 5. TTS (Volcengine V3) -> play ──
