@@ -122,8 +122,7 @@ def asr(pcm):
     ws.connect(
         "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
         header={
-            "X-Api-App-Key": VOLC_APPID,
-            "X-Api-Access-Key": VOLC_TOKEN,
+            "X-Api-Key": VOLC_TOKEN,
             "X-Api-Resource-Id": ASR_RESOURCE_ID,
             "X-Api-Request-Id": str(uuid.uuid4()),
             "X-Api-Sequence": "-1",

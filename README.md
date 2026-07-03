@@ -21,13 +21,12 @@ cp .env.example .env
 
 | 变量 | 说明 | 获取方式 |
 |------|------|----------|
-| `VOLC_APPID` | 火山引擎 App ID | [火山引擎控制台](https://console.volcengine.com/speech) |
-| `VOLC_TOKEN` | 火山引擎 Access Token（V3 统一鉴权） | 同上 |
+| `VOLC_TOKEN` | 火山引擎 API Key（新版控制台统一鉴权） | [火山引擎控制台](https://console.volcengine.com/speech) → 快速入门 |
 | `ASR_RESOURCE_ID` | ASR 资源 ID（默认 `volc.seedasr.sauc.duration`） | 可选，使用默认即可 |
 | `HERMES_API_KEY` | Hermes API Key | 本地运行的 Hermes gateway 配置 |
 | `HERMES_URL` | Hermes API 地址 | 默认 `http://localhost:8642/v1/chat/completions` |
 
-> **注意：** ASR 使用火山引擎 V3 协议（`/api/v3/sauc/bigmodel_nostream`），统一 `X-Api-Key` 鉴权。旧版 V2（`/api/v2/asr` + `Bearer;token`）已不再使用。
+> **鉴权说明：** ASR 和 TTS 均使用火山引擎新版控制台统一鉴权，只需一个 `X-Api-Key`（即 APP Key），不再需要 APP ID。参考文档：[流式语音识别 WebSocket](https://www.volcengine.com/docs/6561/1354869)
 
 ## 运行
 
