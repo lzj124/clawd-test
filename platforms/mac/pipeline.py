@@ -83,6 +83,19 @@ def wait_wakeword(timeout=120):
     return False
 
 
+# ── 1b. Play prompt tone ──
+
+PROMPT_PATH = Path(__file__).parent / "zaizai.wav"
+
+def play_prompt():
+    """Play '在呢' prompt tone"""
+    if not PROMPT_PATH.exists():
+        print("  (no prompt tone)")
+        return
+    import subprocess as _sp
+    _sp.run(["afplay", str(PROMPT_PATH)], capture_output=True)
+
+
 # ── 2. Record ──
 
 def record(secs=5):
@@ -283,6 +296,8 @@ def main():
 
     if not wait_wakeword():
         sys.exit(1)
+
+    play_prompt()
 
     audio = record(RECORD_SECS)
     text = asr(audio)
