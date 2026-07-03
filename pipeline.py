@@ -91,46 +91,82 @@ def record(secs=5):
     return audio.flatten().tobytes()
 
 
-# ── 3. ASR (Volcengine V2 WebSocket) ──
+# ── 3. ASR (Volcengine V3 — 大模型语音识别) ──
+
+ASR_RESOURCE_ID = os.environ.get("ASR_RESOURCE_ID", "volc.seedasr.sauc.duration")
 
 def asr(pcm):
+    """Volcengine ASR V3 (bigmodel_nostream) — unified X-Api-Key auth."""
     import websocket
+    import io as _io
+
+    # Wrap raw PCM into WAV (V3 requires WAV format)
+    buf = _io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(pcm)
+    wav_data = buf.getvalue()
+
+    def _hdr(msg_type, flags, serialization=0):
+        return bytes([
+            0x11,
+            (msg_type << 4) | flags,
+            (serialization << 4) | 0x00,
+            0x00,
+        ])
 
     ws = websocket.WebSocket()
     ws.settimeout(15)
-    ws.connect("wss://openspeech.bytedance.com/api/v2/asr",
-               header={"Authorization": f"Bearer;{VOLC_TOKEN}"})
+    ws.connect(
+        "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
+        header={
+            "X-Api-App-Key": VOLC_APPID,
+            "X-Api-Access-Key": VOLC_TOKEN,
+            "X-Api-Resource-Id": ASR_RESOURCE_ID,
+            "X-Api-Request-Id": str(uuid.uuid4()),
+            "X-Api-Sequence": "-1",
+        },
+    )
 
-    def hdr(t, f):
-        return bytes([0x11, (t << 4) | f, 0x10, 0x00])
-
-    cfg = json.dumps({
-        "app": {"appid": VOLC_APPID, "token": VOLC_TOKEN, "cluster": "volcengine_streaming_common"},
+    # Send config (JSON, serialization=1)
+    config = json.dumps({
         "user": {"uid": "clawd-test"},
-        "audio": {"format": "raw", "rate": 16000, "bits": 16, "channel": 1,
-                  "language": "zh-CN"},
-        "request": {"reqid": str(uuid.uuid4()), "nbest": 1, "show_utterances": True},
-    }).encode()
-    ws.send(hdr(1, 0) + struct.pack(">I", len(cfg)) + cfg)
-    ws.send(hdr(2, 2) + struct.pack(">I", len(pcm)) + pcm)
+        "audio": {"format": "wav", "rate": 16000, "bits": 16,
+                  "channel": 1, "language": "zh-CN"},
+        "request": {"model_name": "bigmodel"},
+    }).encode("utf-8")
+    ws.send(_hdr(0x01, 0x00, serialization=1) +
+            struct.pack(">I", len(config)) + config,
+            opcode=websocket.ABNF.OPCODE_BINARY)
+
+    # Send audio (last frame, flags=0x02)
+    ws.send(_hdr(0x02, 0x02) +
+            struct.pack(">I", len(wav_data)) + wav_data,
+            opcode=websocket.ABNF.OPCODE_BINARY)
 
     text = ""
     while True:
         msg = ws.recv()
-        if not isinstance(msg, bytes) or len(msg) < 8:
+        if not isinstance(msg, bytes) or len(msg) < 12:
             continue
-        pl = msg[8:8 + struct.unpack(">I", msg[4:8])[0]]
-        t = (msg[1] >> 4) & 0xF
-        if t == 9:
-            r = json.loads(pl)
-            if r.get("code") == 0:
-                for seg in r.get("result", []):
-                    if seg.get("text"):
-                        text = seg["text"]
-            if r.get("payload_msg", r).get("is_final"):
+        msg_type = (msg[1] >> 4) & 0x0F
+        flags = msg[1] & 0x0F
+        psz = struct.unpack(">I", msg[8:12])[0]
+        payload = msg[12:12 + psz] if psz <= len(msg) - 12 else msg[12:]
+
+        if msg_type == 0x09:  # full server response
+            r = json.loads(payload.decode("utf-8"))
+            t = r.get("result", {}).get("text", "")
+            if t:
+                text = t
+            if flags == 0x03:  # last response
                 break
-        elif t == 0xF:
+        elif msg_type == 0x0F:  # error
+            print(f"ASR error: {payload.decode('utf-8', errors='replace')[:200]}")
             break
+
     ws.close()
 
     if text:
