@@ -151,7 +151,7 @@ def llm_chat(text, hermes_url="", hermes_key="", api_server_key="clawd",
     hdrs = {"Content-Type": "application/json"}
     if hermes_key:
         hdrs["Authorization"] = f"Bearer {hermes_key}"
-    else:
+    elif api_server_key:
         hdrs["X-Api-Key"] = api_server_key
 
     base = hermes_url.rsplit("/v1/chat/completions", 1)[0]
