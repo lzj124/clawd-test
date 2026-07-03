@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ClawVoice Pi — 全链路语音助手 (树莓派/Debian)"""
-import os, sys, json, time, base64, struct, uuid, wave, subprocess
+import os, sys, json, time, base64, struct, uuid, wave, subprocess, socket
 from pathlib import Path
 
 # ── 配置（优先读取 .env） ──
@@ -12,9 +12,8 @@ if env_path.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-API_KEY = os.environ.get("VOLC_TOKEN", "")
+API_KEY=os.env...N", "")
 HERMES_URL = os.environ.get("HERMES_URL", "http://localhost:8642/v1/chat/completions")
-LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 LLM_PROMPT = "你是一个中文语音助手，回答简短直接。"
 ASR_RESOURCE_ID = os.environ.get("ASR_RESOURCE_ID", "volc.seedasr.sauc.duration")
 AUDIO_DEV = os.environ.get("AUDIO_DEV", "plughw:2,0")
@@ -23,6 +22,45 @@ RECORD_SECS = int(os.environ.get("RECORD_SECS", "5"))
 if not API_KEY:
     print("! Missing VOLC_TOKEN, check .env")
     sys.exit(1)
+
+API_SERVER_KEY = os.environ.get("API_SERVER_KEY", "clawd")
+
+
+# ── 0. Auto-start Hermes gateway ──
+
+def ensure_hermes():
+    s = socket.socket()
+    try:
+        s.settimeout(2)
+        s.connect(("localhost", 8642))
+        s.close()
+        print("Hermes: ready")
+        return
+    except:
+        pass
+    print("Starting Hermes...")
+    env = os.environ.copy()
+    env["API_SERVER_KEY"] = API_SERVER_KEY
+    subprocess.Popen(
+        ["hermes", "gateway", "run", "--replace"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        env=env,
+    )
+    for _ in range(30):
+        time.sleep(1)
+        try:
+            s = socket.socket()
+            s.settimeout(2)
+            s.connect(("localhost", 8642))
+            s.close()
+            print("Hermes: ready")
+            return
+        except:
+            continue
+    print("! Failed to start Hermes, start manually")
+
+
+# ── 音频工具 ──
 
 # ── 音频工具 ──
 
@@ -191,12 +229,14 @@ def llm_chat(text):
     import requests
     print("🤖 LLM...")
     try:
+        hdrs = {"Content-Type": "application/json", "X-Api-Key": API_SERVER_KEY}
+
         # Create run
         url = HERMES_URL.replace("/chat/completions", "/v1/runs")
         resp = requests.post(
             url,
             json={"input": text, "instructions": LLM_PROMPT},
-            headers={"Content-Type": "application/json"},
+            headers=hdrs,
             timeout=10,
         )
         if resp.status_code not in (200, 202):
@@ -210,7 +250,7 @@ def llm_chat(text):
 
         # Stream events
         ev_url = HERMES_URL.replace("/chat/completions", f"/v1/runs/{run_id}/events")
-        ev_resp = requests.get(ev_url, headers={"Content-Type": "application/json"}, timeout=120, stream=True)
+        ev_resp = requests.get(ev_url, headers=hdrs, timeout=120, stream=True)
         if ev_resp.status_code != 200:
             print(f"  Events HTTP {ev_resp.status_code}")
             return None
@@ -230,13 +270,12 @@ def llm_chat(text):
             event = ev.get("event", "")
 
             if event == "approval.request":
-                # Auto-approve
                 approve_url = HERMES_URL.replace(
                     "/chat/completions", f"/v1/runs/{run_id}/approval"
                 )
                 try:
                     requests.post(approve_url, json={"choice": "always"},
-                                  headers={"Content-Type": "application/json"}, timeout=5)
+                                  headers=hdrs, timeout=5)
                 except Exception:
                     pass
                 continue
@@ -323,6 +362,8 @@ def main():
     print("  ClawVoice Pi — 全链路 (V3 API)")
     print("  唤醒词 -> 在呢 -> 录制 -> ASR -> LLM -> TTS")
     print("=" * 50)
+
+    ensure_hermes()
 
     prompt = ensure_prompt_audio()
 
