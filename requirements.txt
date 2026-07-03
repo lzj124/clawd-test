@@ -1,5 +1,7 @@
 # Clawd — Python dependencies
 openwakeword
-we...onnxruntime
+websocket-client
+requests
 numpy
 scipy
+onnxruntime
