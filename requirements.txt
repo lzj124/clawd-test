@@ -1,6 +1,5 @@
-# Clawd — Python dependencies (Mac)
+# Clawd — Python dependencies
 openwakeword
-sounddevice
 we...onnxruntime
 numpy
 scipy
