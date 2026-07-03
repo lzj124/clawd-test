@@ -12,7 +12,7 @@ if env_path.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-API_KEY=os.env...N", "")
+API_KEY = os.environ.get("VOLC_TOKEN", "")
 HERMES_URL = os.environ.get("HERMES_URL", "http://localhost:8642/v1/chat/completions")
 LLM_PROMPT = "你是一个中文语音助手，回答简短直接。"
 ASR_RESOURCE_ID = os.environ.get("ASR_RESOURCE_ID", "volc.seedasr.sauc.duration")
@@ -232,9 +232,9 @@ def llm_chat(text):
         hdrs = {"Content-Type": "application/json", "X-Api-Key": API_SERVER_KEY}
 
         # Create run
-        url = HERMES_URL.replace("/chat/completions", "/v1/runs")
+        base = HERMES_URL.rsplit("/v1/chat/completions", 1)[0]
         resp = requests.post(
-            url,
+            f"{base}/v1/runs",
             json={"input": text, "instructions": LLM_PROMPT},
             headers=hdrs,
             timeout=10,
@@ -249,7 +249,7 @@ def llm_chat(text):
             return None
 
         # Stream events
-        ev_url = HERMES_URL.replace("/chat/completions", f"/v1/runs/{run_id}/events")
+        ev_url = f"{base}/v1/runs/{run_id}/events"
         ev_resp = requests.get(ev_url, headers=hdrs, timeout=120, stream=True)
         if ev_resp.status_code != 200:
             print(f"  Events HTTP {ev_resp.status_code}")
@@ -270,9 +270,7 @@ def llm_chat(text):
             event = ev.get("event", "")
 
             if event == "approval.request":
-                approve_url = HERMES_URL.replace(
-                    "/chat/completions", f"/v1/runs/{run_id}/approval"
-                )
+                approve_url = f"{base}/v1/runs/{run_id}/approval"
                 try:
                     requests.post(approve_url, json={"choice": "always"},
                                   headers=hdrs, timeout=5)

@@ -251,8 +251,9 @@ def chat(text):
         hdrs["X-Api-Key"] = API_SERVER_KEY
 
     # Create run
+    base = HERMES_URL.rsplit("/v1/chat/completions", 1)[0]
     resp = requests.post(
-        HERMES_URL.replace("/chat/completions", "/v1/runs"),
+        f"{base}/v1/runs",
         json={"input": text, "instructions": LLM_PROMPT},
         headers=hdrs, timeout=10,
     )
@@ -266,7 +267,7 @@ def chat(text):
         return None
 
     # Stream events
-    ev_url = HERMES_URL.replace("/chat/completions", f"/v1/runs/{run_id}/events")
+    ev_url = f"{base}/v1/runs/{run_id}/events"
     ev_resp = requests.get(ev_url, headers=hdrs, timeout=120, stream=True)
     if ev_resp.status_code != 200:
         print(f"  Events HTTP {ev_resp.status_code}")
@@ -288,9 +289,7 @@ def chat(text):
 
         if event == "approval.request":
             # Auto-approve for voice assistant (no UI)
-            approve_url = HERMES_URL.replace(
-                "/chat/completions", f"/v1/runs/{run_id}/approval"
-            )
+            approve_url = f"{base}/v1/runs/{run_id}/approval"
             try:
                 requests.post(approve_url, json={"choice": "always"},
                               headers=hdrs, timeout=5)
