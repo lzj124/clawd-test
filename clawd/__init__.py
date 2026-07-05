@@ -70,6 +70,31 @@ def ensure_hermes(api_server_key="clawd"):
     print("! Failed to start Hermes")
 
 
+# ── 唤醒词模型初始化 ──
+
+def init_wakeword_model(wakeword="alexa"):
+    """初始化 openWakeWord 模型，按需下载。返回 Model 实例"""
+    import openwakeword
+    from openwakeword.model import Model
+
+    mdir = Path(openwakeword.__file__).parent / "resources" / "models"
+    has_models = any(mdir.glob("*.onnx")) or any(mdir.glob("*.tflite"))
+    if not has_models:
+        print("Downloading models...")
+        openwakeword.utils.download_models()
+    onx = mdir / "embedding_model.onnx"
+    if not onx.exists():
+        tfl = mdir / "embedding_model.tflite"
+        if tfl.exists():
+            import shutil
+            shutil.copy(str(tfl), str(onx))
+
+    print("Loading wake word...")
+    model = Model(wakeword_models=[wakeword])
+    print(f'🎤 Listening "{wakeword}"...')
+    return model
+
+
 # ── ASR (V3 bigmodel_nostream) ──
 
 def asr_transcribe(pcm, volc_token="", resource_id="volc.seedasr.sauc.duration"):

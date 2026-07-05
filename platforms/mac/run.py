@@ -11,7 +11,8 @@ _root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_root))
 
 from clawd import (
-    load_env, ensure_hermes, asr_transcribe, llm_chat, tts_synthesize
+    load_env, ensure_hermes, asr_transcribe, llm_chat, tts_synthesize,
+    init_wakeword_model
 )
 
 cfg = load_env(str(_root))
@@ -20,25 +21,10 @@ cfg = load_env(str(_root))
 # ── 唤醒词 (Mac: sounddevice) ──
 
 def wait_wakeword(timeout=120):
-    import openwakeword
-    from openwakeword.model import Model
     import sounddevice as sd
     import numpy as np
 
-    mdir = Path(openwakeword.__file__).parent / "resources" / "models"
-    has_models = any(mdir.glob("*.onnx")) or any(mdir.glob("*.tflite"))
-    if not has_models:
-        print("Downloading models...")
-        openwakeword.utils.download_models()
-    onx = mdir / "embedding_model.onnx"
-    if not onx.exists():
-        tfl = mdir / "embedding_model.tflite"
-        if tfl.exists():
-            import shutil; shutil.copy(str(tfl), str(onx))
-
-    print("Loading wake word...")
-    model = Model(wakeword_models=["alexa"])
-    print('🎤 Listening "alexa"...')
+    model = init_wakeword_model("alexa")
     SR, FRAME = 16000, 1280
     stream = sd.InputStream(samplerate=SR, channels=1, dtype="int16", blocksize=FRAME)
     stream.start()
@@ -96,10 +82,12 @@ def speak(text):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000)
         w.writeframes(bytes(pcm))
     import subprocess as sp, os as _os
-    sp.run(["afplay", path])
-    _os.unlink(path)
-    print("  Played")
-    return True
+    try:
+        sp.run(["afplay", path])
+        print("  Played")
+        return True
+    finally:
+        _os.unlink(path)
 
 
 # ── Main ──

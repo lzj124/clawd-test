@@ -1,5 +1,6 @@
 # Clawd — Python dependencies
 openwakeword
+sounddevice
 websocket-client
 requests
 numpy

@@ -10,7 +10,8 @@ _root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_root))
 
 from clawd import (
-    load_env, ensure_hermes, asr_transcribe, llm_chat, tts_synthesize
+    load_env, ensure_hermes, asr_transcribe, llm_chat, tts_synthesize,
+    init_wakeword_model
 )
 
 cfg = load_env(str(_root))
@@ -39,24 +40,9 @@ def wav_to_pcm(path):
 # ── 唤醒词 (Pi: arecord pipe) ──
 
 def wait_wakeword():
-    import openwakeword
-    from openwakeword.model import Model
     import numpy as np
 
-    mdir = Path(openwakeword.__file__).parent / "resources" / "models"
-    has_models = any(mdir.glob("*.onnx")) or any(mdir.glob("*.tflite"))
-    if not has_models:
-        print("Downloading models...")
-        openwakeword.utils.download_models()
-    onx = mdir / "embedding_model.onnx"
-    if not onx.exists():
-        tfl = mdir / "embedding_model.tflite"
-        if tfl.exists():
-            import shutil; shutil.copy(str(tfl), str(onx))
-
-    print("Loading wake word...")
-    model = Model(wakeword_models=["alexa"])
-    print('🎤 Listening "alexa"...')
+    model = init_wakeword_model("alexa")
 
     proc = subprocess.Popen(
         ["arecord", "-D", AUDIO_DEV, "-r", "16000", "-f", "S16_LE", "-c", "1", "-t", "raw"],
